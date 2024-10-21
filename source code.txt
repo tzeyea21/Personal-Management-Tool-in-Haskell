@@ -1,0 +1,25 @@
+class PrintNameAndValue implements Runnable {
+ public void run() {
+ for(int x = 1; x <= 10; x++) {
+ System.out.println(“By ” + Thread.currentThread().getName() + “, x is ” + x);
+ }
+ }
+}
+public class TestClass1 {
+ public static void main ( String[] args ) {
+ PrintNameAndValue pnav = new PrintNameAndValue();
+ Thread t0 = new Thread(pnav);
+ Thread t1 = new Thread(pnav);
+ Thread t2 = new Thread(pnav);
+ // Set the priority of thread t0 and t2.
+ t0.setPriority(1);
+ t2.setPriority(10);
+ // Check the priority of thread t2.
+ System.out.println(“Priority of thread t2 is ” + t2.getPriority());
+
+ t0.start();
+ t1.start();
+ t2.start();
+ System.out.println(“This is the end of main() method.”);
+ }
+}
