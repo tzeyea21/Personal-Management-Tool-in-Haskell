@@ -1,25 +1,456 @@
-class PrintNameAndValue implements Runnable {
- public void run() {
- for(int x = 1; x <= 10; x++) {
- System.out.println(“By ” + Thread.currentThread().getName() + “, x is ” + x);
- }
- }
-}
-public class TestClass1 {
- public static void main ( String[] args ) {
- PrintNameAndValue pnav = new PrintNameAndValue();
- Thread t0 = new Thread(pnav);
- Thread t1 = new Thread(pnav);
- Thread t2 = new Thread(pnav);
- // Set the priority of thread t0 and t2.
- t0.setPriority(1);
- t2.setPriority(10);
- // Check the priority of thread t2.
- System.out.println(“Priority of thread t2 is ” + t2.getPriority());
+Main.hs:
+module Main where
 
- t0.start();
- t1.start();
- t2.start();
- System.out.println(“This is the end of main() method.”);
- }
-}
+import Data.Char (toLower)
+import Data.List (find)
+import Text.Printf (printf)
+
+import Types
+import MainMenu
+
+main :: IO ()
+main = do
+  putStrLn "Please enter your name: "
+  name <- getLine
+  let initialUser = User name [] []
+  _ <- mainMenu initialUser
+  return ()
+
+===============================================================================================================================================
+
+Types.hs:
+module Types (
+  Entry (..),
+  TransactionType (..),
+  Todo (..),
+  User (..),
+  addEntry
+) where
+
+-- Entry type for journal entries and financial transactions
+data Entry = JournalEntry { journalDate :: String, journalText :: String } | FinancialTransaction { transactionType :: TransactionType, transactionDescription :: String, transanctionAmount :: Double } deriving (Eq, Show)
+
+-- Transaction type
+data TransactionType = Income | Expense deriving (Eq, Show)
+
+-- To-Do List type
+data Todo = TodoTask { todoTitle :: String, todoDescription :: String, todoStatus :: String } deriving (Eq, Show)
+
+-- User type
+data User = User { name :: String, entries :: [Entry], todos :: [Todo] } deriving (Eq, Show)
+
+-- Function to add a new entry to the user's record
+addEntry :: User -> Entry -> User
+addEntry user entry = user { entries = entry : entries user }
+
+===============================================================================================================================================
+
+MainMenu.hs:
+
+module MainMenu (
+  mainMenu
+) where
+
+import Types 
+import TodoList
+import Financial
+import Journal
+import System.Exit (exitSuccess)
+
+-- Main Menu
+mainMenu :: User -> IO User
+mainMenu user = do
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn "===== RoutineSync - Personal Management Tool ====="
+  putStrLn ""
+  putStrLn "1. To-Do List"
+  putStrLn "2. Financial"
+  putStrLn "3. Journal"
+  putStrLn "4. Exit"
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStr "What would you like to do?: "
+  putStrLn ""
+  choice <- getLine
+
+  case choice of
+    "1" -> do
+      updatedUser <- displayTodoListManagement user
+      mainMenu updatedUser
+
+    "2" -> do
+      updatedUser <- displayFinancialManagement user mainMenu
+      mainMenu updatedUser
+
+    "3" -> do
+      updatedUser <- displayJournalManagement user mainMenu
+      mainMenu updatedUser
+
+    "4" -> do
+      putStrLn "See you again!"
+      exitSuccess
+
+    _ -> do
+      putStrLn "Invalid choice. Try again."
+      mainMenu user
+
+===============================================================================================================================================
+
+TodoList.hs:
+module TodoList (
+  User (..),
+  Todo (..),
+  addTodoTask,
+  updateTodoStatus,
+  displayTodoListManagement,
+  ) where
+
+  import Types
+  import Data.List (find)
+
+  -- Function to add a new to-do task to the user's list
+  addTodoTask :: User -> IO User
+  addTodoTask user = do
+    putStrLn "Please enter the title of the new to-do task: "
+    todoTitle <- getLine
+    putStrLn "Please enter the description of the new to-do task: "
+    todoDescription <- getLine
+    let newTodo = TodoTask todoTitle todoDescription ""
+    putStrLn "To-do Task added successfully!"
+    return user { todos = newTodo : todos user }
+
+  -- Function to update the status of a to-do task
+  updateTodoStatus :: User -> String -> IO User
+  updateTodoStatus user title = do
+    case find (\todo -> todoTitle todo == title) (todos user) of
+      Just _ -> do
+        putStrLn "Please enter the status of the task (eg: Completed): "
+        newStatus <- getLine
+        let updatedUser = updateUserStatus newStatus
+        return updatedUser
+
+      Nothing -> do
+        putStrLn "To-do task not found. Please enter a valid task title: "
+        reEnterTitle <- getLine
+        updateTodoStatus user reEnterTitle
+
+    where
+      updateUserStatus newStatus = user { todos = updatedTodos }
+        where
+          updatedTodos = map updateStatus (todos user)
+          updateStatus todo
+            | todoTitle todo == title = todo { todoStatus = newStatus }
+            | otherwise = todo
+
+  -- Function to display the to-do list management menu
+  displayTodoListManagement :: User -> IO User
+  displayTodoListManagement user = do
+    putStrLn ""
+    putStrLn "--------------------------------------------------"
+    putStrLn "============= To-Do List Management =============="
+    putStrLn ""
+    mapM_ (\todo -> putStrLn $ "[" ++ todoStatus todo ++ "] " ++ "" ++ todoTitle todo ++ " | " ++ todoDescription todo) (todos user)
+
+    putStrLn ""
+    putStrLn "1. Add new to-do task"
+    putStrLn "2. Edit to-do task status"
+    putStrLn "3. Back to Main Menu"
+    putStrLn ""
+    putStrLn "=================================================="
+    putStrLn "--------------------------------------------------"
+    putStrLn ""
+    putStr "Please enter your choice: "
+    todoChoice <- getLine
+
+    case todoChoice of
+      "1" -> do
+        updatedUser <- addTodoTask user
+        displayTodoListManagement updatedUser
+
+      "2" -> do
+        putStrLn "Please enter the title of the to-do task that you want to edit: "
+        todoTitleToEdit <- getLine
+        updatedUser <- updateTodoStatus user todoTitleToEdit
+        putStrLn "To-do task status updated successfully!"
+        displayTodoListManagement updatedUser
+
+      "3" -> return user
+
+      _ -> do
+        putStrLn "Invalid choice. Try again."
+        displayTodoListManagement user
+
+===============================================================================================================================================
+
+Financial.hs:
+module Financial (
+  User (..),
+  Entry (..),
+  TransactionType (..),
+  getTransactionType,
+  getAmount,
+  recordFinancialTransaction,
+  displayFinancialSummary,
+  displayFinancialManagement,
+) where
+
+import Data.Char (toLower)
+import Text.Printf (printf)
+import Types 
+
+-- Function to get valid transaction type
+getTransactionType :: IO TransactionType
+getTransactionType = do
+  putStrLn "Please enter the transaction type (Income/Expense): "
+  transactionTypeStr <- getLine
+  let lowerTransactionType = map toLower transactionTypeStr
+  case lowerTransactionType of
+    "income" -> return Income
+    "expense" -> return Expense
+    _ -> do
+      putStrLn "Invalid transaction type. Try again."
+      getTransactionType
+
+-- Function to get valid amount 
+getAmount :: IO Double
+getAmount = do
+  putStrLn "Please enter the amount in numeric: "
+  amountStr <- getLine
+  case reads amountStr of
+    [(amount, "")] -> return amount
+    _ -> do
+      putStrLn "Invalid amount. Try again."
+      getAmount
+
+-- Function to record a financial transaction
+recordFinancialTransaction :: User -> (User -> IO User) -> IO User
+recordFinancialTransaction user menuFunction= do
+  transactionType <- getTransactionType
+  putStrLn "Please enter the description of the transaction: "
+  description <- getLine
+  amount <- getAmount
+  let updatedUser = addEntry user (FinancialTransaction transactionType description amount)
+  putStrLn ""
+  putStrLn "Financial transaction recorded successfully!"
+  displayFinancialManagement updatedUser menuFunction
+
+-- Function to display details of financial transaction
+displayTransactionDetails :: Entry -> IO ()
+displayTransactionDetails (FinancialTransaction transType description amount) =
+  printf "%s: %s $%.2f\n" (show transType) description amount
+displayTransactionDetails _ = return ()
+
+-- Function to display the financial summary
+displayFinancialSummary :: User -> (User -> IO User) -> IO User
+displayFinancialSummary user menuFunction = do
+  let allTransactions = entries user
+      income = sum [ amount | FinancialTransaction Income _ amount <- allTransactions ]
+      expense = sum [ amount | FinancialTransaction Expense _ amount <- allTransactions ]
+      remainingBudget = income - expense
+
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn "=============== Financial Summary ================"
+  putStrLn ""
+  mapM_ displayTransactionDetails allTransactions
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn $ "Total Incomes: " ++ show income
+  putStrLn $ "Total Expenses: " ++ show expense
+  putStrLn $ "Remaining Budget: " ++ show remainingBudget
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn "1. Back to Financial Management"
+  putStrLn "2. Back to Main Menu"
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn "Please enter your choice: "
+  financialGoBackChoice <- getLine
+
+  case financialGoBackChoice of
+    "1" -> displayFinancialManagement user menuFunction
+
+    "2" -> menuFunction user
+    
+    _ -> do
+      putStrLn "Invalid choice. Try again."
+      displayFinancialSummary user menuFunction
+
+-- Function to display the financial management menu
+displayFinancialManagement :: User -> (User -> IO User) -> IO User
+displayFinancialManagement user menuFunction = do
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn "============== Financial Management =============="
+  putStrLn ""
+  putStrLn "1. Record Financial Transaction"
+  putStrLn "2. View Financial Summary"
+  putStrLn "3. Back to Main Menu"
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn "Please enter your choice: "
+  financialChoice <- getLine
+
+  case financialChoice of
+    "1" -> do
+      updatedUser <- recordFinancialTransaction user menuFunction
+      displayFinancialManagement updatedUser menuFunction
+
+    "2" -> do
+      displayFinancialSummary user menuFunction
+
+    "3" -> menuFunction user
+
+    _ -> do
+      putStrLn "Invalid choice. Try again. "
+      displayFinancialManagement user menuFunction
+
+===============================================================================================================================================
+
+Journal.hs:
+{-# LANGUAGE LambdaCase #-}
+
+module Journal (
+  User (..),
+  Entry (..),
+  recordJournalEntry,
+  displayJournalEntryDetails,
+  deleteJournalEntry,
+  displayAllJournals,
+  displayJournalManagement
+) where
+
+import Text.Printf (printf)
+import Data.List (find)
+import Types
+
+-- Function to record a journal
+recordJournalEntry :: User -> (User -> IO User) -> IO User
+recordJournalEntry user actionFunction = do
+  putStrLn "Please enter the date of the journal entry: "
+  journalDate <- getLine
+  putStrLn "Please enter your journal:"
+  journalText <- getLine
+  let updatedUser = addEntry user (JournalEntry journalDate journalText)
+  putStrLn ""
+  putStrLn "Journal added successfully!"
+  displayAllJournals updatedUser actionFunction
+
+-- Function to display journal entry
+displayJournalEntryDetails :: User -> IO ()
+displayJournalEntryDetails user = do
+  let journalEntries = [entry | entry@(JournalEntry _ _) <- entries user]
+  mapM_ printEntry journalEntries
+  where
+    printEntry :: Entry -> IO ()
+    printEntry entry =
+      case entry of
+        JournalEntry date text -> printf "%s: %s\n" date text
+        _ -> return ()
+
+-- Function to delete a journal
+deleteJournalEntry :: User -> IO User
+deleteJournalEntry user = do
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn "================ Delete a Journal ================"
+  putStrLn ""
+  displayJournalEntryDetails user
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn "Please enter the date of the journal you want to delete: "
+  journalDateToDelete <- getLine
+
+  let updatedEntries = filter (\case
+                                JournalEntry date _ -> date /= journalDateToDelete
+                                _ -> True
+                              ) (entries user)
+  
+  case find (\case
+              JournalEntry date _ -> date == journalDateToDelete
+              _ -> False
+            ) (entries user) of
+    Just _ -> do
+      putStrLn "Journal has been deleted successfully!"
+      putStrLn ""
+      return user { entries = updatedEntries }
+    Nothing -> do
+      putStrLn "Journal not found. Try again. "
+      deleteJournalEntry user
+
+-- Function to display all journals
+displayAllJournals :: User -> (User -> IO User) -> IO User
+displayAllJournals user actionFunction = do
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn "================== View Journal =================="
+  putStrLn ""
+  displayJournalEntryDetails user
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn ""
+  putStrLn "1. Delete a journal"
+  putStrLn "2. Back to Journal Management"
+  putStrLn "3. Back to Main Menu"
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn "Please enter your choice: "
+  journalChoice <- getLine
+
+  case journalChoice of
+    "1" -> do 
+      updatedUser <- deleteJournalEntry user
+      displayAllJournals updatedUser actionFunction
+
+    "2" -> displayJournalManagement user actionFunction
+    
+    "3" -> actionFunction user
+
+    _ -> do
+      putStrLn "Invalid choice. Try again."
+      displayAllJournals user actionFunction
+
+-- Function to display the journal management menu
+displayJournalManagement :: User -> (User -> IO User) -> IO User
+displayJournalManagement user actionFunction= do
+  putStrLn ""
+  putStrLn "--------------------------------------------------"
+  putStrLn "=============== Journal Management ==============="
+  putStrLn ""
+  putStrLn "1. Write a journal"
+  putStrLn "2. View Journal"
+  putStrLn "3. Back to Main Menu"
+  putStrLn ""
+  putStrLn "=================================================="
+  putStrLn "--------------------------------------------------"
+  putStrLn ""
+  putStrLn "Please enter your choice: "
+  journalChoice <- getLine
+
+  case journalChoice of
+    "1" -> do
+      updatedUser <- recordJournalEntry user actionFunction
+      displayJournalManagement updatedUser actionFunction
+
+    "2" -> do
+      updatedUser <- displayAllJournals user actionFunction
+      displayJournalManagement updatedUser actionFunction
+
+    "3" -> actionFunction user
+
+    _ -> do
+      putStrLn "Invalid Choice. Try again."
+      return user
